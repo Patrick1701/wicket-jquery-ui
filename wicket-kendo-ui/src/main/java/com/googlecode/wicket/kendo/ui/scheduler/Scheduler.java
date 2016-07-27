@@ -323,6 +323,10 @@ public class Scheduler extends JQueryContainer implements ISchedulerListener
 		// noop
 	}
 
+	public void onRead(AjaxRequestTarget target) {
+		modelBehavior.onRequest();
+	}
+	
 	/**
 	 * Triggered when {@link #refresh(AjaxRequestTarget)} has been called
 	 * 

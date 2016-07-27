@@ -45,6 +45,8 @@ public interface ISchedulerListener extends IClusterable
 	 */
 	boolean isEditEnabled();
 
+	void onRead(AjaxRequestTarget target);
+	
 	/**
 	 * Triggered when a {@link SchedulerEvent} should be edit.<br/>
 	 * This occurs on clicking an event or clicking a free slot, as well. Use {@link SchedulerEvent#isNew(SchedulerEvent)} to determine the use-case.

@@ -121,6 +121,17 @@ public class KendoDataSource extends Options implements IKendoDataSource
 	}
 
 	/**
+	 * Sets the 'transport.parameterMap' callback function
+	 *
+	 * @param function the javascript function
+	 */
+	public void setTransportParameterMap(String function)
+	{
+		this.transport.set("parameterMap", function);
+	}
+	
+	
+	/**
 	 * Prepares the data-source to be rendered
 	 *
 	 * @return this, for chaining

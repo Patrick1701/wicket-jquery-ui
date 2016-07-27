@@ -25,7 +25,6 @@ import org.apache.wicket.markup.head.IHeaderResponse;
 import org.apache.wicket.markup.head.JavaScriptHeaderItem;
 import org.apache.wicket.request.resource.JavaScriptResourceReference;
 import org.apache.wicket.util.lang.Args;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +55,8 @@ public abstract class SchedulerBehavior extends KendoUIBehavior implements IJQue
 	private final SchedulerDataSource dataSource;
 
 	private JQueryAjaxBehavior onEditAjaxBehavior = null;
+	
+	private JQueryAjaxBehavior onReadAjaxBehavior;
 	private JQueryAjaxBehavior onNavigateAjaxBehavior;
 
 	private JQueryAjaxBehavior onCreateAjaxBehavior;
@@ -106,9 +107,12 @@ public abstract class SchedulerBehavior extends KendoUIBehavior implements IJQue
 			component.add(this.onEditAjaxBehavior);
 		}
 
+		this.onReadAjaxBehavior = this.newOnReadAjaxBehavior(this);
+		component.add(this.onReadAjaxBehavior);
+		
 		this.onNavigateAjaxBehavior = this.newOnNavigateAjaxBehavior(this);
 		component.add(this.onNavigateAjaxBehavior);
-
+		
 		this.onCreateAjaxBehavior = this.newOnCreateAjaxBehavior(this);
 		component.add(this.onCreateAjaxBehavior);
 
@@ -149,27 +153,27 @@ public abstract class SchedulerBehavior extends KendoUIBehavior implements IJQue
 	 *
 	 * @return the 'read' callback function
 	 */
-	private String getReadCallbackFunction()
-	{
-		String widget = this.widget();
-		String start = widget + ".view().startDate().getTime()";
-		String end = String.format("calculateKendoSchedulerViewEndPeriod(%s.view().endDate()).getTime()", widget);
-
-		return "function(options) {" // lf
-				+ " jQuery.ajax({" // lf
-				+ "		url: '" + this.getDataSourceUrl() + "'," // lf
-				+ "		data: { start: " + start + ",  end: " + end + "}," // lf
-				+ "		cache: false," // lf
-				+ "		dataType: 'json'," // lf
-				+ "		success: function(result) {" // lf
-				+ "			options.success(result);" // lf
-				+ "		}," // lf
-				+ "		error: function(result) {" // lf
-				+ "			options.error(result);" // lf
-				+ "		}" // lf
-				+ "	});" // lf
-				+ "}";
-	}
+//	private String getReadCallbackFunction()
+//	{
+//		String widget = this.widget();
+//		String start = widget + ".view().startDate().getTime()";
+//		String end = String.format("calculateKendoSchedulerViewEndPeriod(%s.view().endDate()).getTime()", widget);
+//
+//		return "function(options) {" // lf
+//				+ " jQuery.ajax({" // lf
+//				+ "		url: '" + this.getDataSourceUrl() + "'," // lf
+//				+ "		data: { start: " + start + ",  end: " + end + "}," // lf
+//				+ "		cache: false," // lf
+//				+ "		dataType: 'json'," // lf
+//				+ "		success: function(result) {" // lf
+//				+ "			options.success(result);" // lf
+//				+ "		}," // lf
+//				+ "		error: function(result) {" // lf
+//				+ "			options.error(result);" // lf
+//				+ "		}" // lf
+//				+ "	});" // lf
+//				+ "}";
+//	}
 
 	// Events //
 
@@ -193,10 +197,26 @@ public abstract class SchedulerBehavior extends KendoUIBehavior implements IJQue
 		this.onConfigure(this.dataSource);
 		this.setOption("dataSource", this.dataSource.getName());
 
-		this.dataSource.setTransportRead(this.getReadCallbackFunction());
+		this.dataSource.setTransportRead(this.onReadAjaxBehavior.getCallbackFunction());
 		this.dataSource.setTransportCreate(this.onCreateAjaxBehavior.getCallbackFunction());
 		this.dataSource.setTransportUpdate(this.onUpdateAjaxBehavior.getCallbackFunction());
 		this.dataSource.setTransportDelete(this.onDeleteAjaxBehavior.getCallbackFunction());
+		
+		
+		String widget = this.widget();
+		String start = widget + ".view().startDate().getTime()";
+		String end = String.format("calculateKendoSchedulerViewEndPeriod(%s.view().endDate()).getTime()", widget);
+
+		
+		this.dataSource.setTransportParameterMap("function(event, operation) {"
+													+ "if (operation !== \"read\" && event) {"
+													+ "		event.start = event.start.getTime();"// convert to timestamp before sending
+													+ "		event.end = event.end.getTime();"
+													+ "		return { data: kendo.stringify(event) };"
+													+ "} else {"
+													+ "		return { start: "+start+", end: "+end+" }"
+													+ "}"
+												+ "}");
 
 		// resource //
 		this.setOption("resources", this.getResourceListModel());
@@ -215,6 +235,12 @@ public abstract class SchedulerBehavior extends KendoUIBehavior implements IJQue
 	@Override
 	public void onAjax(AjaxRequestTarget target, JQueryEvent event)
 	{
+
+		if (event instanceof ReadEvent)
+		{
+			this.listener.onRead(target);
+		}
+		
 		if (event instanceof NavigateEvent)
 		{
 			this.listener.onNavigate(target, ((NavigateEvent) event).getView());
@@ -249,6 +275,26 @@ public abstract class SchedulerBehavior extends KendoUIBehavior implements IJQue
 
 	// Factories //
 
+	/**
+	 * Gets a new {@link JQueryAjaxBehavior} that will be wired to the datasource's 'read' event
+	 *
+	 * @param source the {@link IJQueryAjaxAware}
+	 * @return a new {@code DataSourceAjaxBehavior} by default
+	 */
+	protected JQueryAjaxBehavior newOnReadAjaxBehavior(IJQueryAjaxAware source)
+	{
+		return new DataSourceAjaxBehavior(source) {
+
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			protected JQueryEvent newEvent()
+			{
+				return new ReadEvent();
+			}
+		};
+	}	
+	
 	/**
 	 * Gets a new {@link JQueryAjaxBehavior} that will be wired to the 'navigate' event, triggered when the user is navigating in the scheduler
 	 *
@@ -416,25 +462,8 @@ public abstract class SchedulerBehavior extends KendoUIBehavior implements IJQue
 		}
 
 		@Override
-		protected CallbackParameter[] getCallbackParameters()
-		{
-			return new CallbackParameter[] { CallbackParameter.context("e"), // lf
-					CallbackParameter.resolved("data", "kendo.stringify(e.data)") // lf
-			};
-		}
-
-		@Override
-		public CharSequence getCallbackFunctionBody(CallbackParameter... parameters)
-		{
-			String statement = "";
-
-			// convert to timestamp before sending
-			statement += "e.data.start = e.data.start.getTime();";
-			statement += "e.data.end = e.data.end.getTime();";
-			statement += super.getCallbackFunctionBody(parameters);
-			statement += "e.success();";
-
-			return statement;
+		public String getCallbackFunction() {
+			return "{ url:\""+getCallbackUrl()+"\"}";
 		}
 	}
 
@@ -504,6 +533,13 @@ public abstract class SchedulerBehavior extends KendoUIBehavior implements IJQue
 		{
 			return this.view;
 		}
+	}
+
+	/**
+	 * Provides an event object that will be broadcasted by {@link SchedulerBehavior#newOnReadAjaxBehavior(IJQueryAjaxAware)} callback
+	 */
+	protected static class ReadEvent extends JQueryEvent
+	{
 	}
 
 	/**

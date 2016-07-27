@@ -35,7 +35,12 @@ public class SchedulerAdapter implements ISchedulerListener
 	{
 		return false;
 	}
-
+	
+	@Override
+	public void onRead(AjaxRequestTarget target) {
+		// noop
+	}
+	
 	@Override
 	public void onEdit(AjaxRequestTarget target, SchedulerEvent event, SchedulerViewType view)
 	{
